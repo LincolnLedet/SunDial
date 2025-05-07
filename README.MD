@@ -24,6 +24,6 @@ To run this project on Windows, the following packages are required:
 First, create a new Conda environment to isolate the project dependencies:
 
 ```bash
-conda create -n shade-prediction python=3.11
-conda activate shade-prediction
+conda create -n SunDial_env python=3.11
+conda activate SunDial_env
 conda install -c conda-forge whitebox whitebox_workflows geemap rioxarray rasterio earthpy matplotlib geopandas pyproj
