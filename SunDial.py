@@ -1,12 +1,34 @@
 #Code by Lincoln Ledet
 
 import os
+import requests
 import whitebox
 import geemap
 import rioxarray as rxr
 import earthpy.plot as ep
 import matplotlib.pyplot as plt
+import ssl
 
+
+def fetch_lidar_file(latidtue, longitude):
+    url = "https://rockyweb.usgs.gov/vdelivery/Datasets/Staged/Elevation/LPC/Projects/GA_Statewide_2018_B18_DRRA/GA_Statewide_B4_2018/LAZ/USGS_LPC_GA_Statewide_2018_B18_DRRA_e1157n1284.laz"
+    file_name = url.split("/")[-1]
+    output_path = os.path.join("LAZ", file_name)
+    # Create the output directory if it doesn't exist
+    os.makedirs("LAZ", exist_ok=True)
+
+    print(f"Starting download: {file_name}")
+    with requests.get(url, stream=True, verify=False) as response:
+        response.raise_for_status()
+        with open(output_path, "wb") as file:
+            for chunk in response.iter_content(chunk_size=8192):
+                file.write(chunk)
+    print(f"Download complete: {output_path}")
+
+
+
+
+    return
 
 def process_lidar_file(laz_file_path, output_dir, crs=6350, resolution=0.5, exclude_classes="1,2,3,4,5,7,8,9,10,12,13"):
     # Validate file paths
@@ -51,7 +73,8 @@ def process_lidar_file(laz_file_path, output_dir, crs=6350, resolution=0.5, excl
 
 
 def main():
-    laz_file = r"C:\Users\linco\Desktop\Ledet_Code\SunDial\USGS_LPC_GA_Statewide_2018_B18_DRRA_e1157n1283.laz"
+    fetch_lidar_file(1, 1)
+    laz_file = r"C:\Users\linco\Desktop\Ledet_Code\SunDial\LAZ\USGS_LPC_GA_Statewide_2018_B18_DRRA_e1157n1284.laz"
     output_directory = r"C:\Users\linco\Desktop\Ledet_Code\SunDial\output"
     process_lidar_file(laz_file, output_directory, crs=6350, resolution=0.5)
 

@@ -1,4 +1,4 @@
-# Shade Prediction API
+# SunDial
 
 ## Overview
 The goal of this project is to create a publicly accessible, open-source API or Python library that can take in the input longitude, latitude, and time of day, and predict if a point is in shade based on publicly available LiDAR scans. This project leverages powerful geospatial libraries for LiDAR data processing and analysis.
