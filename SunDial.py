@@ -8,6 +8,8 @@ import rioxarray as rxr
 import earthpy.plot as ep
 import matplotlib.pyplot as plt
 import ssl
+import laspy
+import numpy as np
 
 
 def fetch_lidar_file(latidtue, longitude):
@@ -25,12 +27,45 @@ def fetch_lidar_file(latidtue, longitude):
                 file.write(chunk)
     print(f"Download complete: {output_path}")
 
+    return
 
-
+def laspy_test(laz_file_path):
+    with laspy.open(laz_file_path) as fh:
+        print('Points from Header:', fh.header.point_count)
+        las = fh.read()
+        print(las)
+        print('Points from data:', len(las.points))
+        ground_pts = las.classification == 2
+        bins, counts = np.unique(las.return_number[ground_pts], return_counts=True)
+        print('Ground Point Return Number distribution:')
+        for r,c in zip(bins,counts):
+            print('    {}:{}'.format(r,c))
 
     return
 
-def process_lidar_file(laz_file_path, output_dir, crs=6350, resolution=0.5, exclude_classes="1,2,3,4,5,7,8,9,10,12,13"):
+def make_surface(laz_file_path, out_dir, out_name, returns="all", keep_classes=None):
+    """
+    runs lidar_idw_interpolation:
+      - returns: "all" or "first"
+      - keep_classes: list of ASPRS codes to INCLUDE (others get excluded)
+    """
+    wbt = whitebox()
+    
+    wbt.set_working_dir(out_dir)
+    excl = ",".join(str(c) for c in range(0,14)
+                     if keep_classes is None or c not in keep_classes)
+    wbt.lidar_idw_interpolation(
+        i=laz_file_path,
+        output=os.path.join(out_dir, out_name),
+        parameter="elevation",
+        returns=returns,
+        resolution="0.5",
+        exclude_cls=excl
+    )
+
+
+# this creates a pyplot of the rendered lidar file
+def plot_lidar_file(laz_file_path, output_dir, crs=6350, resolution=0.5, exclude_classes="1,2,3,4,5,7,8,9,10,12,13"):
     # Validate file paths
     if not os.path.exists(laz_file_path):
         raise FileNotFoundError(f"LAZ file not found: {laz_file_path}")
@@ -73,11 +108,35 @@ def process_lidar_file(laz_file_path, output_dir, crs=6350, resolution=0.5, excl
 
 
 def main():
-    fetch_lidar_file(1, 1)
+    #fetch_lidar_file(1, 1)
     laz_file = r"C:\Users\linco\Desktop\Ledet_Code\SunDial\LAZ\USGS_LPC_GA_Statewide_2018_B18_DRRA_e1157n1284.laz"
+    laspy_test(laz_file)
     output_directory = r"C:\Users\linco\Desktop\Ledet_Code\SunDial\output"
-    process_lidar_file(laz_file, output_directory, crs=6350, resolution=0.5)
+    plot_lidar_file(laz_file, output_directory, crs=6350, resolution=0.5)
 
 
 if __name__ == "__main__":
     main()
+
+# ASPRS LAS classification mapping:
+# 0:  Never classified
+# 1:  Unassigned
+# 2:  Ground
+# 3:  Low vegetation
+# 4:  Medium vegetation
+# 5:  High vegetation
+# 6:  Building
+# 7:  Low point (noise)
+# 8:  Reserved
+# 9:  Water
+# 10: Rail
+# 11: Road surface
+# 12: Reserved
+# 13: Wire – guard (shield)
+# 14: Wire – conductor (phase)
+# 15: Transmission tower
+# 16: Wire‐structure connector (insulator)
+# 17: Bridge deck
+# 18: High noise
+# 19–63: Reserved for future ASPRS definitions
+# 64–255: User‐definable classes
