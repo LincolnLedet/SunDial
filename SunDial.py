@@ -122,6 +122,27 @@ def Surface(laz_file_path, out_dir, out_name, returns="all"):
     )
 
 
+def tifEditTest(TifPath):
+    
+    with rasterio.open(TifPath, mode='r+') as src:
+    # Read the first (and usually only) band into a NumPy array
+        dem = src.read(1)
+
+        # Loop over every row and column
+        for row in range(src.height):
+            for col in range(src.width):
+                val = dem[row, col]
+                # example edit: clamp any negative elevation up to 0
+                if val < 0:
+                    dem[row, col] = 0
+
+        # Write our modified array back into band #1
+        src.write(dem, 1)
+    
+    
+
+
+
 
 
 def main():
@@ -134,9 +155,14 @@ def main():
 
 
     ShowdowCaster(laz_file, interpolated_directory, "ShowdowCaster.tif", returns="all")
-    Surface(laz_file, interpolated_directory, "Surface.tif", returns="all")
+    #Surface(laz_file, interpolated_directory, "Surface.tif", returns="all")
+   # rasterioTest(ShowdowCasterPath)
+    #rasterioTest(SurfacePath)
+    tifEditTest(ShowdowCasterPath)
     rasterioTest(ShowdowCasterPath)
-    rasterioTest(SurfacePath)
+
+
+
     output_directory = r"C:\Users\lll81910\Desktop\Coding Projects\SunDial\output"
     #plot_lidar_file(laz_file, output_directory, crs=6350, resolution=0.5)
 
