@@ -13,8 +13,33 @@ import numpy as np
 import rasterio
 
 
+#################NOTES###################
+# ASPRS LAS classification mapping:
+# 0:  Never classified
+# 1:  Unassigned
+# 2:  Ground
+# 3:  Low vegetation
+# 4:  Medium vegetation
+# 5:  High vegetation
+# 6:  Building
+# 7:  Low point (noise)
+# 8:  Reserved
+# 9:  Water
+# 10: Rail
+# 11: Road surface
+
+# LAZ RENDER Constants
+VEGETATION_PARAMS = "0,1,2,3,4,7,8,9,12,13,14"
+GROUND_PARAMS     = "0,1,3,4,5,6,7,8,9,12,13,14"
+
+# DIR Constants
+LINC_FP = r'C:\Users\lll81910\Desktop\Coding Projects\SunDial'
+
+
 def fetch_lidar_file(latidtue, longitude): #pulls .laz file from usgs
-    url = "https://rockyweb.usgs.gov/vdelivery/Datasets/Staged/Elevation/LPC/Projects/GA_Statewide_2018_B18_DRRA/GA_Statewide_B4_2018/LAZ/USGS_LPC_GA_Statewide_2018_B18_DRRA_e1157n1284.laz"
+    url = "https://rockyweb.usgs.gov/vdelivery/Datasets/Staged/Elevation/LPC" \
+          "/Projects/GA_Statewide_2018_B18_DRRA/GA_Statewide_B4_2018/LAZ/USGS_LPC_GA_Statewide_2018_B18_DRRA_e1157n1284.laz"
+
     file_name = url.split("/")[-1]
     output_path = os.path.join("LAZ", file_name)
     # Create the output directory if it doesn't exist
@@ -46,9 +71,10 @@ def print_laspy_info(laz_file_path):
 
     return
 
+
 # Plots the DEM
 def rasterioTest(tifPath):
-    src= rasterio.open(tifPath)
+    src = rasterio.open(tifPath)
 
     dem_data = src.read(1)
 
@@ -76,15 +102,15 @@ def RenderLidar(laz_file_path, out_dir, out_name,excludes, returns="all"):
     """
     wbt = whitebox.WhiteboxTools()
     wbt.set_working_dir(out_dir)
-# ONLY exclude if keep_classes is explicitly given
-    
+
+    # ONLY exclude if keep_classes is explicitly given
+
     if not os.path.exists(laz_file_path):
         raise FileNotFoundError(f"LAZ file not found: {laz_file_path}")
     if not os.path.exists(out_dir):
         os.makedirs(out_dir, exist_ok=True)
 
-
-
+    # Run interpolation
     wbt.lidar_idw_interpolation(
         i=laz_file_path,
         output=os.path.join(out_dir, out_name),
@@ -93,10 +119,13 @@ def RenderLidar(laz_file_path, out_dir, out_name,excludes, returns="all"):
         resolution="1",
         exclude_cls= excludes
     )
+    return
 
 
-#edits raw DEM grid
 def tifEditTest(TifPath):
+    """
+    Edits raw DEM grid
+    """
     with rasterio.open(TifPath, mode='r+') as src:
     # Read the first (and usually only) band into a NumPy array
         dem = src.read(1)
@@ -112,51 +141,38 @@ def tifEditTest(TifPath):
 
         # Write our modified array back into band #1
         src.write(dem, 1)
-    
-    
+
+
 
 
 def main():
     #fetch_lidar_file(1, 1)
-    interpolated_directory = r"C:\Users\lll81910\Desktop\Coding Projects\SunDial\output"
-    laz_file = r"C:\Users\lll81910\Desktop\Coding Projects\SunDial\LAZ\USGS_LPC_GA_Statewide_2018_B18_DRRA_e1157n1283.laz"
-    TallCaster = r"C:\Users\lll81910\Desktop\Coding Projects\SunDial\output\TallCaster.tif"
-    ShortCaster = r"C:\Users\lll81910\Desktop\Coding Projects\SunDial\output\ShortCaster.tif"
+    output_dir  = LINC_FP + r"\output"
 
-    SurfacePath = r"C:\Users\lll81910\Desktop\Coding Projects\SunDial\output\Surface.tif"
+    laz_file    = r"LAZ\USGS_LPC_GA_Statewide_2018_B18_DRRA_e1157n1283.laz"
 
+    TallCaster  = LINC_FP + r"\output\TallCaster.tif"
+    ShortCaster = LINC_FP + r"\output\ShortCaster.tif"
+    SurfacePath = LINC_FP + r"\output\Surface.tif"
 
+    # Render Veg then Ground
+    #RenderLidar(laz_file, output_dir, "Surface.tif", GROUND_PARAMS, returns="all")
+    #RenderLidar(laz_file, output_dir, "TallCaster.tif", VEGETATION_PARAMS,  returns="all")
 
-    #RenderLidar(laz_file, interpolated_directory, "TallCaster.tif", "0,1,2,3,4,7,8,9,12,13,14", returns="all")
-    RenderLidar(laz_file, interpolated_directory, "ShortCaster.tif", "0,1,2,6,7,8,9,10,11,12,13,14", returns="all")
-    #RenderLidar(laz_file, interpolated_directory, "Surface.tif","0,1,3,4,5,6,7,8,9,12,13,14", returns="all")
+    # Test Render
+    RenderLidar(laz_file, output_dir, "ShortCaster.tif", "0,1,2,6,7,8,9,10,11,12,13,14", returns="all")
+
+    # Rasterize
     rasterioTest(TallCaster)
     rasterioTest(ShortCaster)
     rasterioTest(SurfacePath)
 
-   # rasterioTest(SurfacePath)
+    # rasterioTest(SurfacePath)
     tifEditTest(TallCaster)
 
-
-
-    output_directory = r"C:\Users\lll81910\Desktop\Coding Projects\SunDial\output"
-    #plot_lidar_file(laz_file, output_directory, crs=6350, resolution=0.5)
+    #plot_lidar_file(laz_file, output_dir, crs=6350, resolution=0.5)
 
 
 if __name__ == "__main__":
     main()
-
-# ASPRS LAS classification mapping:
-# 0:  Never classified
-# 1:  Unassigned
-# 2:  Ground
-# 3:  Low vegetation
-# 4:  Medium vegetation
-# 5:  High vegetation
-# 6:  Building
-# 7:  Low point (noise)
-# 8:  Reserved
-# 9:  Water
-# 10: Rail
-# 11: Road surface
 
