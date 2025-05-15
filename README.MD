@@ -29,4 +29,5 @@ First, create a new Conda environment to isolate the project dependencies:
 ```bash
 conda create -n SunDial_env python=3.11
 conda activate SunDial_env
-conda install -c conda-forge whitebox whitebox_workflows geemap rioxarray rasterio earthpy matplotlib geopandas pyproj
+conda install -c conda-forge whitebox whitebox_workflows geemap rioxarray rasterio earthpy matplotlib geopandas pyproj 
+*you may need to install the packages one at a time. 
