@@ -13,7 +13,7 @@ import numpy as np
 import rasterio
 
 
-def fetch_lidar_file(latidtue, longitude):
+def fetch_lidar_file(latidtue, longitude): #pulls .laz file from usgs
     url = "https://rockyweb.usgs.gov/vdelivery/Datasets/Staged/Elevation/LPC/Projects/GA_Statewide_2018_B18_DRRA/GA_Statewide_B4_2018/LAZ/USGS_LPC_GA_Statewide_2018_B18_DRRA_e1157n1284.laz"
     file_name = url.split("/")[-1]
     output_path = os.path.join("LAZ", file_name)
@@ -30,7 +30,7 @@ def fetch_lidar_file(latidtue, longitude):
 
     return
 
-
+# prints raw data from LAS file. Note that a LAZ file is a compressed LAS file
 def print_laspy_info(laz_file_path):
     with laspy.open(laz_file_path) as fh:
         print('Points from Header:', fh.header.point_count)
@@ -46,7 +46,7 @@ def print_laspy_info(laz_file_path):
 
     return
 
-
+# Plots the DEM
 def rasterioTest(tifPath):
     src= rasterio.open(tifPath)
 
@@ -67,8 +67,8 @@ def rasterioTest(tifPath):
     return
 
 
-#rasters things that cast shadows, like buildings and trees
-def ShowdowCaster(laz_file_path, out_dir, out_name, returns="all"):
+#Creates DEM .tif files
+def RenderLidar(laz_file_path, out_dir, out_name,excludes, returns="all"):
     """
     runs lidar_idw_interpolation:
       - returns: "all" or "first"
@@ -91,50 +91,24 @@ def ShowdowCaster(laz_file_path, out_dir, out_name, returns="all"):
         parameter="elevation",
         returns=returns,
         resolution="1",
-        exclude_cls= "0,1,2,3,7,8,9,10,11,12,13,14"
+        exclude_cls= excludes
     )
 
 
-def Surface(laz_file_path, out_dir, out_name, returns="all"):
-    """
-    runs lidar_idw_interpolation:
-      - returns: "all" or "first"
-      - keep_classes: list of ASPRS codes to INCLUDE (others get excluded)
-    """
-    wbt = whitebox.WhiteboxTools()
-    wbt.set_working_dir(out_dir)
-# ONLY exclude if keep_classes is explicitly given
-    
-    if not os.path.exists(laz_file_path):
-        raise FileNotFoundError(f"LAZ file not found: {laz_file_path}")
-    if not os.path.exists(out_dir):
-        os.makedirs(out_dir, exist_ok=True)
-
-
-
-    wbt.lidar_idw_interpolation(
-        i=laz_file_path,
-        output=os.path.join(out_dir, out_name),
-        parameter="elevation",
-        returns=returns,
-        resolution="1",
-        exclude_cls= "0,1,3,4,5,6,7,8,9,12,13,14"
-    )
-
-
+#edits raw DEM grid
 def tifEditTest(TifPath):
-    
     with rasterio.open(TifPath, mode='r+') as src:
     # Read the first (and usually only) band into a NumPy array
         dem = src.read(1)
 
         # Loop over every row and column
+        print (src.height,src.width)
         for row in range(src.height):
             for col in range(src.width):
                 val = dem[row, col]
-                # example edit: clamp any negative elevation up to 0
-                if val < 0:
-                    dem[row, col] = 0
+                #if (val < 0):
+                    #print(val)
+                #dem[row, col] = 0
 
         # Write our modified array back into band #1
         src.write(dem, 1)
@@ -142,24 +116,26 @@ def tifEditTest(TifPath):
     
 
 
-
-
-
 def main():
     #fetch_lidar_file(1, 1)
     interpolated_directory = r"C:\Users\lll81910\Desktop\Coding Projects\SunDial\output"
     laz_file = r"C:\Users\lll81910\Desktop\Coding Projects\SunDial\LAZ\USGS_LPC_GA_Statewide_2018_B18_DRRA_e1157n1283.laz"
-    ShowdowCasterPath = r"C:\Users\lll81910\Desktop\Coding Projects\SunDial\output\ShowdowCaster.tif"
+    TallCaster = r"C:\Users\lll81910\Desktop\Coding Projects\SunDial\output\TallCaster.tif"
+    ShortCaster = r"C:\Users\lll81910\Desktop\Coding Projects\SunDial\output\ShortCaster.tif"
+
     SurfacePath = r"C:\Users\lll81910\Desktop\Coding Projects\SunDial\output\Surface.tif"
 
 
 
-    ShowdowCaster(laz_file, interpolated_directory, "ShowdowCaster.tif", returns="all")
-    #Surface(laz_file, interpolated_directory, "Surface.tif", returns="all")
-   # rasterioTest(ShowdowCasterPath)
-    #rasterioTest(SurfacePath)
-    tifEditTest(ShowdowCasterPath)
-    rasterioTest(ShowdowCasterPath)
+    #RenderLidar(laz_file, interpolated_directory, "TallCaster.tif", "0,1,2,3,4,7,8,9,12,13,14", returns="all")
+    RenderLidar(laz_file, interpolated_directory, "ShortCaster.tif", "0,1,2,6,7,8,9,10,11,12,13,14", returns="all")
+    #RenderLidar(laz_file, interpolated_directory, "Surface.tif","0,1,3,4,5,6,7,8,9,12,13,14", returns="all")
+    rasterioTest(TallCaster)
+    rasterioTest(ShortCaster)
+    rasterioTest(SurfacePath)
+
+   # rasterioTest(SurfacePath)
+    tifEditTest(TallCaster)
 
 
 
