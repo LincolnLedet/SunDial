@@ -13,21 +13,6 @@ import numpy as np
 import rasterio
 
 
-#################NOTES###################
-# ASPRS LAS classification mapping:
-# 0:  Never classified
-# 1:  Unassigned
-# 2:  Ground
-# 3:  Low vegetation
-# 4:  Medium vegetation
-# 5:  High vegetation
-# 6:  Building
-# 7:  Low point (noise)
-# 8:  Reserved
-# 9:  Water
-# 10: Rail
-# 11: Road surface
-
 # LAZ RENDER Constants
 VEGETATION_PARAMS = "0,1,2,3,4,7,8,9,12,13,14"
 GROUND_PARAMS     = "0,1,3,4,5,6,7,8,9,12,13,14"
@@ -122,6 +107,7 @@ def RenderLidar(laz_file_path, out_dir, out_name,excludes, returns="all"):
     return
 
 
+#edits raw DEM grid
 def tifEditTest(TifPath):
     """
     Edits raw DEM grid
@@ -146,14 +132,12 @@ def tifEditTest(TifPath):
 
 
 def main():
-    #fetch_lidar_file(1, 1)
-    output_dir  = LINC_FP + r"\output"
-
-    laz_file    = r"LAZ\USGS_LPC_GA_Statewide_2018_B18_DRRA_e1157n1283.laz"
-
-    TallCaster  = LINC_FP + r"\output\TallCaster.tif"
-    ShortCaster = LINC_FP + r"\output\ShortCaster.tif"
-    SurfacePath = LINC_FP + r"\output\Surface.tif"
+    cwd =  os.getcwd()
+    interpolated_directory = os.path.join(cwd, "output")
+    laz_file = os.path.join(cwd, "LAZ/USGS_LPC_GA_Statewide_2018_B18_DRRA_e1157n1283.laz")
+    TallCaster = os.path.join(cwd, "output\TallCaster.tif")
+    ShortCaster = os.path.join(cwd, "output\ShortCaster.tif")
+    SurfacePath = os.path.join(cwd, "output\Surface.tif")
 
     # Render Veg then Ground
     #RenderLidar(laz_file, output_dir, "Surface.tif", GROUND_PARAMS, returns="all")
@@ -176,3 +160,21 @@ def main():
 if __name__ == "__main__":
     main()
 
+# ASPRS LAS classification mapping:
+# 0:  Never classified
+# 1:  Unassigned
+# 2:  Ground
+# 3:  Low vegetation
+# 4:  Medium vegetation
+# 5:  High vegetation
+# 6:  Building
+# 7:  Low point (noise)
+# 8:  Reserved
+# 9:  Water
+# 10: Rail
+# 11: Road surface
+
+# TO DO
+# Add comments and use os.path to make code more accessible.
+# Finish Method to download usgs laz file based on lat and long
+# Preprocess laz and las
