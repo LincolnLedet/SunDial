@@ -13,8 +13,18 @@ import numpy as np
 import rasterio
 
 
+# LAZ RENDER Constants
+VEGETATION_PARAMS = "0,1,2,3,4,7,8,9,12,13,14"
+GROUND_PARAMS     = "0,1,3,4,5,6,7,8,9,12,13,14"
+
+# DIR Constants
+LINC_FP = r'C:\Users\lll81910\Desktop\Coding Projects\SunDial'
+
+
 def fetch_lidar_file(latidtue, longitude): #pulls .laz file from usgs
-    url = "https://rockyweb.usgs.gov/vdelivery/Datasets/Staged/Elevation/LPC/Projects/GA_Statewide_2018_B18_DRRA/GA_Statewide_B4_2018/LAZ/USGS_LPC_GA_Statewide_2018_B18_DRRA_e1157n1284.laz"
+    url = "https://rockyweb.usgs.gov/vdelivery/Datasets/Staged/Elevation/LPC" \
+          "/Projects/GA_Statewide_2018_B18_DRRA/GA_Statewide_B4_2018/LAZ/USGS_LPC_GA_Statewide_2018_B18_DRRA_e1157n1284.laz"
+
     file_name = url.split("/")[-1]
     output_path = os.path.join("LAZ", file_name)
     # Create the output directory if it doesn't exist
@@ -46,9 +56,10 @@ def print_laspy_info(laz_file_path):
 
     return
 
+
 # Plots the DEM
 def rasterioTest(tifPath):
-    src= rasterio.open(tifPath)
+    src = rasterio.open(tifPath)
 
     dem_data = src.read(1)
 
@@ -76,15 +87,15 @@ def RenderLidar(laz_file_path, out_dir, out_name,excludes, returns="all"):
     """
     wbt = whitebox.WhiteboxTools()
     wbt.set_working_dir(out_dir)
-# ONLY exclude if keep_classes is explicitly given
-    
+
+    # ONLY exclude if keep_classes is explicitly given
+
     if not os.path.exists(laz_file_path):
         raise FileNotFoundError(f"LAZ file not found: {laz_file_path}")
     if not os.path.exists(out_dir):
         os.makedirs(out_dir, exist_ok=True)
 
-
-
+    # Run interpolation
     wbt.lidar_idw_interpolation(
         i=laz_file_path,
         output=os.path.join(out_dir, out_name),
@@ -93,10 +104,14 @@ def RenderLidar(laz_file_path, out_dir, out_name,excludes, returns="all"):
         resolution="1",
         exclude_cls= excludes
     )
+    return
 
 
 #edits raw DEM grid
 def tifEditTest(TifPath):
+    """
+    Edits raw DEM grid
+    """
     with rasterio.open(TifPath, mode='r+') as src:
     # Read the first (and usually only) band into a NumPy array
         dem = src.read(1)
@@ -112,8 +127,8 @@ def tifEditTest(TifPath):
 
         # Write our modified array back into band #1
         src.write(dem, 1)
-    
-    
+
+
 
 
 def main():
@@ -124,21 +139,22 @@ def main():
     ShortCaster = os.path.join(cwd, "output\ShortCaster.tif")
     SurfacePath = os.path.join(cwd, "output\Surface.tif")
 
+    # Render Veg then Ground
+    #RenderLidar(laz_file, output_dir, "Surface.tif", GROUND_PARAMS, returns="all")
+    #RenderLidar(laz_file, output_dir, "TallCaster.tif", VEGETATION_PARAMS,  returns="all")
 
-    #RenderLidar(laz_file, interpolated_directory, "TallCaster.tif", "0,1,2,3,4,7,8,9,12,13,14", returns="all")
-    RenderLidar(laz_file, interpolated_directory, "ShortCaster.tif", "0,1,2,6,7,8,9,10,11,12,13,14", returns="all")
-    #RenderLidar(laz_file, interpolated_directory, "Surface.tif","0,1,3,4,5,6,7,8,9,12,13,14", returns="all")
+    # Test Render
+    RenderLidar(laz_file, output_dir, "ShortCaster.tif", "0,1,2,6,7,8,9,10,11,12,13,14", returns="all")
+
+    # Rasterize
     rasterioTest(TallCaster)
     rasterioTest(ShortCaster)
     rasterioTest(SurfacePath)
 
-   # rasterioTest(SurfacePath)
+    # rasterioTest(SurfacePath)
     tifEditTest(TallCaster)
 
-
-
-    output_directory = r"C:\Users\lll81910\Desktop\Coding Projects\SunDial\output"
-    #plot_lidar_file(laz_file, output_directory, crs=6350, resolution=0.5)
+    #plot_lidar_file(laz_file, output_dir, crs=6350, resolution=0.5)
 
 
 if __name__ == "__main__":
@@ -159,7 +175,6 @@ if __name__ == "__main__":
 # 11: Road surface
 
 # TO DO
-# Add comments and use os.path to make code more accessible. 
+# Add comments and use os.path to make code more accessible.
 # Finish Method to download usgs laz file based on lat and long
-# Preprocess laz and las 
-    
+# Preprocess laz and las
