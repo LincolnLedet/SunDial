@@ -117,14 +117,12 @@ def tifEditTest(TifPath):
 
 
 def main():
-    #fetch_lidar_file(1, 1)
-    interpolated_directory = r"C:\Users\lll81910\Desktop\Coding Projects\SunDial\output"
-    laz_file = r"C:\Users\lll81910\Desktop\Coding Projects\SunDial\LAZ\USGS_LPC_GA_Statewide_2018_B18_DRRA_e1157n1283.laz"
-    TallCaster = r"C:\Users\lll81910\Desktop\Coding Projects\SunDial\output\TallCaster.tif"
-    ShortCaster = r"C:\Users\lll81910\Desktop\Coding Projects\SunDial\output\ShortCaster.tif"
-
-    SurfacePath = r"C:\Users\lll81910\Desktop\Coding Projects\SunDial\output\Surface.tif"
-
+    cwd =  os.getcwd()
+    interpolated_directory = os.path.join(cwd, "output")
+    laz_file = os.path.join(cwd, "LAZ/USGS_LPC_GA_Statewide_2018_B18_DRRA_e1157n1283.laz")
+    TallCaster = os.path.join(cwd, "output\TallCaster.tif")
+    ShortCaster = os.path.join(cwd, "output\ShortCaster.tif")
+    SurfacePath = os.path.join(cwd, "output\Surface.tif")
 
 
     #RenderLidar(laz_file, interpolated_directory, "TallCaster.tif", "0,1,2,3,4,7,8,9,12,13,14", returns="all")
@@ -160,3 +158,8 @@ if __name__ == "__main__":
 # 10: Rail
 # 11: Road surface
 
+# TO DO
+# Add comments and use os.path to make code more accessible. 
+# Finish Method to download usgs laz file based on lat and long
+# Preprocess laz and las 
+    
