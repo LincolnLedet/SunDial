@@ -3,12 +3,16 @@
 import os
 import requests
 import whitebox
+from datetime import datetime
+from pytz import timezone
+import pysolar
 import geemap
 import rioxarray as rxr
 import earthpy.plot as ep
 import matplotlib.pyplot as plt
 import ssl
 import laspy
+
 import numpy as np
 import rasterio
 
@@ -129,15 +133,29 @@ def tifEditTest(TifPath):
         src.write(dem, 1)
 
 
+def get_now() -> datetime:
+    return datetime.now(timezone('US/Eastern'))
+
+
+def get_sun_alt(latitude: float, longitude: float, now: datetime) -> float:
+    return pysolar.solar.get_altitude(latitude_deg=latitude, longitude_deg=longitude, when=now)
 
 
 def main():
+
+    # Timezone - now + sun_altitude function
+    # now_with_tz  = get_now()
+    # print(now_with_tz)
+    # sun_altitude = get_sun_alt(latitude=-19, longitude=82, now=now_with_tz)
+    # print(sun_altitude)
+
     cwd =  os.getcwd()
     interpolated_directory = os.path.join(cwd, "output")
     laz_file = os.path.join(cwd, "LAZ/USGS_LPC_GA_Statewide_2018_B18_DRRA_e1157n1283.laz")
-    TallCaster = os.path.join(cwd, "output\TallCaster.tif")
-    ShortCaster = os.path.join(cwd, "output\ShortCaster.tif")
-    SurfacePath = os.path.join(cwd, "output\Surface.tif")
+    TallCaster = os.path.join(cwd, "output/TallCaster.tif")
+    ShortCaster = os.path.join(cwd, "output/ShortCaster.tif")
+    SurfacePath = os.path.join(cwd, "output/Surface.tif")
+    output_dir = os.path.join(cwd, "output")
 
     # Render Veg then Ground
     #RenderLidar(laz_file, output_dir, "Surface.tif", GROUND_PARAMS, returns="all")
