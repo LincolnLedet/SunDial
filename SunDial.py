@@ -7,33 +7,24 @@ import geemap
 import rioxarray as rxr
 import earthpy.plot as ep
 import matplotlib.pyplot as plt
-import ssl
-import laspy
 import numpy as np
 import rasterio
-import pysolar.solar as solar
+import pysolar
 import datetime
+from pytz import timezone
 from pyproj import CRS, Transformer
 
 
-#def test():
-#
-#   # date = datetime.datetime(2007, 2, 18, 15, 13, 1, 130320, tzinfo=datetime.timezone.utc)
-#    #print(solar.get_altitude(latitude, longitude, date))
-#    #print(solar.get_azimuth(latitude, longitude, date))
-#
-#    alb   = CRS.from_epsg(6350)
-#    wgs84 = CRS.from_epsg(4326)
-#    to_alb = Transformer.from_crs(wgs84, alb, always_xy=True)
-#    albx, alby = to_alb.transform(longitude, latitude)
-#    albx = int(albx // 1000) 
-#    alby = int(alby // 1000 + 1) # 
-#    print(albx, alby)
-#
-#    return 
+def get_now() -> datetime:
+    return datetime.now(timezone('US/Eastern'))
 
-# in progress. Convert Lat and Long to correct usgs standardard and pull the correct laz file
-def fetch_lidar_file(latitude, longitude): #pulls .laz file from usgs
+def get_sun_alt(latitude: float, longitude: float, now: datetime) -> float:
+    return pysolar.solar.get_altitude(latitude_deg=latitude, longitude_deg=longitude, when=now)
+
+def get_sun_azu(latitude: float, longitude: float, now: datetime) -> float:
+    return pysolar.solar.get_azimuth(latitude_deg=latitude, longitude_deg=longitude, when=now)
+
+def fetch_lidar_file(latitude, longitude): #return file name
     #dealing with location format (coverting latitude and longitude to Conus Albers)
     alb   = CRS.from_epsg(6350)
     wgs84 = CRS.from_epsg(4326)
@@ -41,14 +32,12 @@ def fetch_lidar_file(latitude, longitude): #pulls .laz file from usgs
     albx, alby = to_alb.transform(longitude, latitude)
     albx = int(albx // 1000) 
     alby = int(alby // 1000) # 
-
+    #url construction
     url = "https://rockyweb.usgs.gov/vdelivery/Datasets/Staged/Elevation/LPC/Projects/GA_Statewide_2018_B18_DRRA/GA_Statewide_B4_2018/LAZ/USGS_LPC_GA_Statewide_2018_B18_DRRA_e" + str(albx) + "n" + str(alby) + ".laz"
     print("fetching laz file from " + url)
-
     file_name = url.split("/")[-1]
     output_path = os.path.join("LAZ", file_name)
-    # Create the output directory if it doesn't exist
-    os.makedirs("LAZ", exist_ok=True)
+    os.makedirs("LAZ", exist_ok=True)    # Create the output directory if it doesn't exist
 
     print(f"Starting download: {file_name}")
     with requests.get(url, stream=True, verify=False) as response:
@@ -57,25 +46,7 @@ def fetch_lidar_file(latitude, longitude): #pulls .laz file from usgs
             for chunk in response.iter_content(chunk_size=8192):
                 file.write(chunk)
     print(f"Download complete: {output_path}")
-
-    return
-
-# prints raw data from LAS file. Note that a LAZ file is a compressed LAS file
-# purly for testing and troble shooting
-def print_laspy_info(laz_file_path):
-    with laspy.open(laz_file_path) as fh:
-        print('Points from Header:', fh.header.point_count)
-        las = fh.read()
-
-        print(las)
-        print('Points from data:', len(las.points))
-        ground_pts = las.classification == 2
-        bins, counts = np.unique(las.return_number[ground_pts], return_counts=True)
-        print('Ground Point Return Number distribution:')
-        for r,c in zip(bins,counts):
-            print('    {}:{}'.format(r,c))
-
-    return
+    return (output_path)
 
 # Plots the DEM
 def rasterioTest(tifPath):
@@ -119,7 +90,7 @@ def RenderLidar(laz_file_path, out_dir, out_name,excludes, returns="all"):
         output=os.path.join(out_dir, out_name),
         parameter="elevation",
         returns=returns,
-        resolution="1",
+        resolution="2",
         exclude_cls= excludes
     )
 
@@ -135,44 +106,34 @@ def tifEditTest(TifPath):
         for row in range(src.height):
             for col in range(src.width):
                 val = dem[row, col]
-                #if (val < 0):
+                if (val > 245):
                     #print(val)
-                #dem[row, col] = 0
+                    dem[row, col] = 500
 
         # Write our modified array back into band #1
         src.write(dem, 1)
 
 
-    
-    
-
-
 def main():
-    latitude = 33.92236287593863
-    longitude = -83.35154594582096
-    fetch_lidar_file(33.92236287593863, -83.35154594582096)
+    latitude = 33.9224066505482
+    longitude = -83.35140814950346
 
     cwd =  os.getcwd()
     interpolated_directory = os.path.join(cwd, "output")
-    laz_file = os.path.join(cwd, "LAZ/USGS_LPC_GA_Statewide_2018_B18_DRRA_e1157n1283.laz")
-    TallCaster = os.path.join(cwd, "output\TallCaster.tif")
-    ShortCaster = os.path.join(cwd, "output\ShortCaster.tif")
-    SurfacePath = os.path.join(cwd, "output\Surface.tif")
+    mapPath = os.path.join(cwd, fetch_lidar_file(latitude,longitude))
+    print(mapPath)
 
-    RenderLidar(laz_file, interpolated_directory, "TallCaster.tif", "0,1,2,3,4,7,8,9,12,13,14", returns="all")
+    map = os.path.join(cwd, "output\map.tif")
+
+    #RenderLidar(laz_file, interpolated_directory, "TallCaster.tif", "0,1,2,3,4,7,8,9,12,13,14", returns="all")
     #RenderLidar(laz_file, interpolated_directory, "ShortCaster.tif", "0,1,2,6,7,8,9,10,11,12,13,14", returns="all")
     #print_laspy_info(laz_file)
-    #RenderLidar(laz_file, interpolated_directory, "Surface.tif","0,1,3,4,5,6,7,8,9,12,13,14", returns="all")
-    rasterioTest(TallCaster)
+    RenderLidar(mapPath, interpolated_directory, "map.tif","0", returns="all")
+    #rasterioTest(TallCaster)
     #rasterioTest(ShortCaster)
-    #rasterioTest(SurfacePath)
+    rasterioTest(map)
 
    # rasterioTest(SurfacePath)
-    #tifEditTest(TallCaster)
-
-
-
-    output_directory = r"C:\Users\lll81910\Desktop\Coding Projects\SunDial\output"
     #plot_lidar_file(laz_file, output_directory, crs=6350, resolution=0.5)
 
 
@@ -192,6 +153,14 @@ if __name__ == "__main__":
 # 9:  Water
 # 10: Rail
 # 11: Road surface
+# 12: Reserved
+# 13: Wire - Guard (Shield)
+# 14: Wire - Conductor (Phase)
+# 15: Transmission Tower
+# 16: Wire-Structure Connector (Insulator)
+# 17: Bridge Deck
+# 18: High Noise  
+
 
 # TO DO
 # Add comments and use os.path to make code more accessible. 
