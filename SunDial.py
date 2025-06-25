@@ -1,5 +1,4 @@
 #Code by Lincoln Ledet
-
 import os
 import requests
 import whitebox
@@ -11,14 +10,37 @@ import ssl
 import laspy
 import numpy as np
 import rasterio
+from pyproj import CRS, Transformer
+from scipy.interpolate import griddata
 
 
-def fetch_lidar_file(latidtue, longitude): #pulls .laz file from usgs
-    url = "https://rockyweb.usgs.gov/vdelivery/Datasets/Staged/Elevation/LPC/Projects/GA_Statewide_2018_B18_DRRA/GA_Statewide_B4_2018/LAZ/USGS_LPC_GA_Statewide_2018_B18_DRRA_e1157n1284.laz"
+
+
+def fetch_lidar_file(latitude, longitude): 
+    """
+    Downloads Compressed Lidar Data (laz) from usgs
+
+    Parameters:
+    latitude (float)
+    latitude (float)
+
+    Returns:
+    String: Download location
+
+    Raises:
+    """
+    alb   = CRS.from_epsg(6350)
+    wgs84 = CRS.from_epsg(4326)
+    to_alb = Transformer.from_crs(wgs84, alb, always_xy=True)
+    albx, alby = to_alb.transform(longitude, latitude)
+    albx = int(albx // 1000) 
+    alby = int(alby // 1000) # 
+    #url construction
+    url = "https://rockyweb.usgs.gov/vdelivery/Datasets/Staged/Elevation/LPC/Projects/GA_Statewide_2018_B18_DRRA/GA_Statewide_B4_2018/LAZ/USGS_LPC_GA_Statewide_2018_B18_DRRA_e" + str(albx) + "n" + str(alby) + ".laz"
+    print("fetching laz file from " + url)
     file_name = url.split("/")[-1]
     output_path = os.path.join("LAZ", file_name)
-    # Create the output directory if it doesn't exist
-    os.makedirs("LAZ", exist_ok=True)
+    os.makedirs("LAZ", exist_ok=True)    # Create the output directory if it doesn't exist
 
     print(f"Starting download: {file_name}")
     with requests.get(url, stream=True, verify=False) as response:
@@ -27,8 +49,12 @@ def fetch_lidar_file(latidtue, longitude): #pulls .laz file from usgs
             for chunk in response.iter_content(chunk_size=8192):
                 file.write(chunk)
     print(f"Download complete: {output_path}")
+    return (output_path)
 
-    return
+# Example
+
+
+
 
 # prints raw data from LAS file. Note that a LAZ file is a compressed LAS file
 def print_laspy_info(laz_file_path):
@@ -83,8 +109,6 @@ def RenderLidar(laz_file_path, out_dir, out_name,excludes, returns="all"):
     if not os.path.exists(out_dir):
         os.makedirs(out_dir, exist_ok=True)
 
-
-
     wbt.lidar_idw_interpolation(
         i=laz_file_path,
         output=os.path.join(out_dir, out_name),
@@ -93,6 +117,54 @@ def RenderLidar(laz_file_path, out_dir, out_name,excludes, returns="all"):
         resolution="1",
         exclude_cls= excludes
     )
+
+
+def fill_dem_gaps(input_tif: str, output_tif: str):
+    wbt = whitebox.WhiteboxTools()
+    wbt.set_working_dir(os.path.dirname(input_tif))
+    wbt.fill_missing_data(
+        i=input_tif,
+        output=output_tif,
+        filter=61,      # kernel size, must be odd
+        weight=2.0      # how strongly closer points are weighted
+    )
+
+def fill_dem_with_griddata(input_tif, output_tif):
+    with rasterio.open(input_tif) as src:
+        dem = src.read(1)
+        profile = src.profile.copy()
+        nodata_val = src.nodata if src.nodata is not None else -9999
+
+    # Replace NoData values with np.nan
+    dem = np.where(dem == nodata_val, np.nan, dem)
+
+    # Generate coordinate grid
+    rows, cols = np.indices(dem.shape)
+    coords = np.column_stack((rows.ravel(), cols.ravel()))
+
+    # Get valid and missing point positions
+    valid_mask = ~np.isnan(dem)
+    missing_mask = np.isnan(dem)
+
+    valid_coords = coords[valid_mask.ravel()]
+    valid_values = dem[valid_mask]
+
+    missing_coords = coords[missing_mask.ravel()]
+
+    # Run interpolation (nearest fills large gaps best)
+    filled_values = griddata(
+        valid_coords,
+        valid_values,
+        missing_coords,
+        method='nearest'  # 'linear' or 'cubic' are smoother but need dense data
+    )
+
+    # Inject filled values
+    dem[missing_mask] = filled_values
+
+    # Write result
+    with rasterio.open(output_tif, 'w', **profile) as dst:
+        dst.write(dem, 1)
 
 
 #edits raw DEM grid
@@ -117,28 +189,37 @@ def tifEditTest(TifPath):
 
 
 def main():
+
     cwd =  os.getcwd()
     interpolated_directory = os.path.join(cwd, "output")
-    laz_file = os.path.join(cwd, "LAZ/USGS_LPC_GA_Statewide_2018_B18_DRRA_e1157n1283.laz")
-    TallCaster = os.path.join(cwd, "output\TallCaster.tif")
-    ShortCaster = os.path.join(cwd, "output\ShortCaster.tif")
-    SurfacePath = os.path.join(cwd, "output\Surface.tif")
+    laz_file = os.path.join(cwd, fetch_lidar_file(33.92239500777615, -83.35154442512332))
+    Ground = os.path.join(cwd, "output\Ground.tif")
+#     ShortCaster = os.path.join(cwd, "output\ShortCaster.tif")
+#     SurfacePath = os.path.join(cwd, "output\Surface.tif")
+
+    
+    RenderLidar(laz_file, interpolated_directory, "Ground.tif", "0,1,3,4,5", returns="all")
+    Ground_raw = os.path.join(interpolated_directory, "Ground.tif")
+    Ground_filled = os.path.join(interpolated_directory, "Ground_filled.tif")
+    Ground_filled_again = os.path.join(interpolated_directory, "Ground_filled_again.tif")
+
+    fill_dem_gaps(Ground_raw, Ground_filled)
+    fill_dem_with_griddata(Ground_filled, Ground_filled_again)
+#     RenderLidar(laz_file, interpolated_directory, "ShortCaster.tif", "0,1,2,6,7,8,9,10,11,12,13,14", returns="all")
+#     #RenderLidar(laz_file, interpolated_directory, "Surface.tif","0,1,3,4,5,6,7,8,9,12,13,14", returns="all")
+#     rasterioTest(TallCaster)
+#     rasterioTest(ShortCaster)
+#     rasterioTest(SurfacePath)
+
+    rasterioTest(Ground_raw)
+    rasterioTest(Ground_filled)
+    rasterioTest(Ground_filled_again)
+#     tifEditTest(TallCaster)
 
 
-    #RenderLidar(laz_file, interpolated_directory, "TallCaster.tif", "0,1,2,3,4,7,8,9,12,13,14", returns="all")
-    RenderLidar(laz_file, interpolated_directory, "ShortCaster.tif", "0,1,2,6,7,8,9,10,11,12,13,14", returns="all")
-    #RenderLidar(laz_file, interpolated_directory, "Surface.tif","0,1,3,4,5,6,7,8,9,12,13,14", returns="all")
-    rasterioTest(TallCaster)
-    rasterioTest(ShortCaster)
-    rasterioTest(SurfacePath)
 
-   # rasterioTest(SurfacePath)
-    tifEditTest(TallCaster)
-
-
-
-    output_directory = r"C:\Users\lll81910\Desktop\Coding Projects\SunDial\output"
-    #plot_lidar_file(laz_file, output_directory, crs=6350, resolution=0.5)
+#     output_directory = r"C:\Users\lll81910\Desktop\Coding Projects\SunDial\output"
+#     #plot_lidar_file(laz_file, output_directory, crs=6350, resolution=0.5)
 
 
 if __name__ == "__main__":
