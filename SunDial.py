@@ -12,9 +12,10 @@ import numpy as np
 import rasterio
 from pyproj import CRS, Transformer
 from scipy.interpolate import griddata
-
-
-
+from datetime import datetime
+import pandas as pd
+from pvlib import solarposition
+import math
 
 def fetch_lidar_file(latitude, longitude): 
     """
@@ -51,13 +52,17 @@ def fetch_lidar_file(latitude, longitude):
     print(f"Download complete: {output_path}")
     return (output_path)
 
-# Example
 
 
-
-
-# prints raw data from LAS file. Note that a LAZ file is a compressed LAS file
 def print_laspy_info(laz_file_path):
+    """
+    Prints laz file data
+
+    Parameters:
+    laz_file_path (string)
+    latitude (float)
+
+    """
     with laspy.open(laz_file_path) as fh:
         print('Points from Header:', fh.header.point_count)
         las = fh.read()
@@ -74,10 +79,15 @@ def print_laspy_info(laz_file_path):
 
 # Plots the DEM
 def rasterioTest(tifPath):
+    """
+    Creates a DEM plot from a tif file
+
+    Parameters:
+    tifPath (String)
+
+    """
     src= rasterio.open(tifPath)
-
     dem_data = src.read(1)
-
     print(src.meta)
 
     # Plot the resulting raster
@@ -93,7 +103,6 @@ def rasterioTest(tifPath):
     return
 
 
-#Creates DEM .tif files
 def RenderLidar(laz_file_path, out_dir, out_name,excludes, returns="all"):
     """
     runs lidar_idw_interpolation:
@@ -114,12 +123,16 @@ def RenderLidar(laz_file_path, out_dir, out_name,excludes, returns="all"):
         output=os.path.join(out_dir, out_name),
         parameter="elevation",
         returns=returns,
-        resolution="1",
+        resolution="5",
         exclude_cls= excludes
     )
 
 
-def fill_dem_gaps(input_tif: str, output_tif: str):
+def fill_dem_holes(input_tif: str, output_tif: str):
+    """
+    runs fill_missing_data:
+      - Creates a new tif.with filled in holes
+    """
     wbt = whitebox.WhiteboxTools()
     wbt.set_working_dir(os.path.dirname(input_tif))
     wbt.fill_missing_data(
@@ -129,7 +142,12 @@ def fill_dem_gaps(input_tif: str, output_tif: str):
         weight=2.0      # how strongly closer points are weighted
     )
 
-def fill_dem_with_griddata(input_tif, output_tif):
+
+def fill_dem_gaps(input_tif, output_tif):
+    """
+    runs fill_missing_data:
+      - Creates a new tif.with filled in holes
+    """
     with rasterio.open(input_tif) as src:
         dem = src.read(1)
         profile = src.profile.copy()
@@ -172,7 +190,6 @@ def tifEditTest(TifPath):
     with rasterio.open(TifPath, mode='r+') as src:
     # Read the first (and usually only) band into a NumPy array
         dem = src.read(1)
-
         # Loop over every row and column
         print (src.height,src.width)
         for row in range(src.height):
@@ -181,45 +198,74 @@ def tifEditTest(TifPath):
                 #if (val < 0):
                     #print(val)
                 #dem[row, col] = 0
-
         # Write our modified array back into band #1
         src.write(dem, 1)
+
+def ground_level_shadow_cast(TifPath):
+    latitude = 33.922277455353395
+    longitude = -83.35150683793637
+
+    # Get current time in UTC (required by pvlib)
+    now = pd.Timestamp(datetime.utcnow(), tz='UTC')
+    # Calculate solar position
+    solpos = solarposition.get_solarposition(time=now, latitude=latitude, longitude=longitude)
+    # Extract elevation and azimuth
+    elevation = solpos['elevation'].iloc[0]
+    azimuth = solpos['azimuth'].iloc[0]
+
+    print(f"Sun Elevation: {elevation:.2f}°")
+    print(f"Sun Azimuth: {azimuth:.2f}°")
+
+    azrad = np.deg2rad(azimuth)
+    dx = np.sin(azrad)  # how much to move east per step and not 0 degree is north
+    dy = np.cos(azrad)  # how much to move north per step
+
+    i = 100
+    j = 100
+
+    with rasterio.open(TifPath, mode='r+') as src:
+    # Read the first (and usually only) band into a NumPy array
+        dem = src.read(1)
+        # Loop over every row and column
+        print (src.height,src.width)
+        for k in range(1, 30):
+            x = i + k * dx
+            y = j + k * dy
+            dem[int(round(x)),int(round(y))] = 0
+        # for row in range(src.height):
+        #     for col in range(src.width):
+
+        #         val = dem[row, col]
+        #         if (val > 230):
+        #             dem[row, col] = 0
+        # # Write our modified array back into band #1
+        src.write(dem, 1)
+    return
+
     
     
-
-
 def main():
 
     cwd =  os.getcwd()
     interpolated_directory = os.path.join(cwd, "output")
-    laz_file = os.path.join(cwd, fetch_lidar_file(33.92239500777615, -83.35154442512332))
-    Ground = os.path.join(cwd, "output\Ground.tif")
-#     ShortCaster = os.path.join(cwd, "output\ShortCaster.tif")
-#     SurfacePath = os.path.join(cwd, "output\Surface.tif")
+    laz_file = os.path.join(cwd, fetch_lidar_file(33.9222650219558, -83.35147687055435))
 
-    
     RenderLidar(laz_file, interpolated_directory, "Ground.tif", "0,1,3,4,5", returns="all")
     Ground_raw = os.path.join(interpolated_directory, "Ground.tif")
     Ground_filled = os.path.join(interpolated_directory, "Ground_filled.tif")
     Ground_filled_again = os.path.join(interpolated_directory, "Ground_filled_again.tif")
 
-    fill_dem_gaps(Ground_raw, Ground_filled)
-    fill_dem_with_griddata(Ground_filled, Ground_filled_again)
-#     RenderLidar(laz_file, interpolated_directory, "ShortCaster.tif", "0,1,2,6,7,8,9,10,11,12,13,14", returns="all")
-#     #RenderLidar(laz_file, interpolated_directory, "Surface.tif","0,1,3,4,5,6,7,8,9,12,13,14", returns="all")
-#     rasterioTest(TallCaster)
-#     rasterioTest(ShortCaster)
-#     rasterioTest(SurfacePath)
+    fill_dem_holes(Ground_raw, Ground_filled)
+    fill_dem_gaps(Ground_filled, Ground_filled_again)
 
-    rasterioTest(Ground_raw)
-    rasterioTest(Ground_filled)
+
     rasterioTest(Ground_filled_again)
-#     tifEditTest(TallCaster)
 
+    #lets try to cast some shadows!
+    #holy fuck this is hard
+    ground_level_shadow_cast(Ground_filled_again)
+    rasterioTest(Ground_filled_again)
 
-
-#     output_directory = r"C:\Users\lll81910\Desktop\Coding Projects\SunDial\output"
-#     #plot_lidar_file(laz_file, output_directory, crs=6350, resolution=0.5)
 
 
 if __name__ == "__main__":
@@ -240,7 +286,5 @@ if __name__ == "__main__":
 # 11: Road surface
 
 # TO DO
-# Add comments and use os.path to make code more accessible. 
-# Finish Method to download usgs laz file based on lat and long
-# Preprocess laz and las 
+
     
