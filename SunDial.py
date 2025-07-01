@@ -16,6 +16,8 @@ from datetime import datetime
 import pandas as pd
 from pvlib import solarposition
 import math
+import pytz
+
 
 def fetch_lidar_file(latitude, longitude): 
     """
@@ -123,7 +125,7 @@ def RenderLidar(laz_file_path, out_dir, out_name,excludes, returns="all"):
         output=os.path.join(out_dir, out_name),
         parameter="elevation",
         returns=returns,
-        resolution="2",
+        resolution="1",
         exclude_cls= excludes
     )
 
@@ -185,31 +187,19 @@ def fill_dem_gaps(input_tif, output_tif):
         dst.write(dem, 1)
 
 
-#edits raw DEM grid
-def tifEditTest(TifPath):
-    with rasterio.open(TifPath, mode='r+') as src:
-    # Read the first (and usually only) band into a NumPy array
-        dem = src.read(1)
-        # Loop over every row and column
-        print (src.height,src.width)
-        for row in range(src.height):
-            for col in range(src.width):
-                val = dem[row, col]
-                #if (val < 0):
-                    #print(val)
-                #dem[row, col] = 0
-        # Write our modified array back into band #1
-        src.write(dem, 1)
 
 def ground_level_shadow_cast(TifPath):
     latitude = 33.922277455353395
     longitude = -83.35150683793637
 
     # Get current time in UTC (required by pvlib)
-    now = pd.Timestamp.now(tz='America/New_York')
+    eastern = pytz.timezone('America/New_York')
+    dt = eastern.localize(datetime(2025, 6, 30, 17, 0, 0))  # year, month, day, hour (13 = 1PM)
 
-    # Compute solar position
+    # Create pandas timestamp
+    now = pd.Timestamp(dt)
     solpos = solarposition.get_solarposition(time=now, latitude=latitude, longitude=longitude)
+
     # Extract elevation and azimuth
     elevation = solpos['elevation'].iloc[0]
     azimuth = solpos['azimuth'].iloc[0]
@@ -224,27 +214,40 @@ def ground_level_shadow_cast(TifPath):
 
     dz = np.sin(elrad) #how much elevation per step
 
-    i = 100
-    j = 100
+
 
     with rasterio.open(TifPath, mode='r+') as src:
     # Read the first (and usually only) band into a NumPy array
         dem = src.read(1)
         # Loop over every row and column
-        print (src.height,src.width)
-        for k in range(1, 30):
-            x = i + k * dx
-            y = j + k * dy
+        # print (src.height,src.width)
+        # for k in range(1, 30):
+        #     x = i + k * dx
+        #     y = j + k * dy
 
-            
-            dem[int(round(y)),int(round(x))] = 0
-        # for row in range(src.height):
-        #     for col in range(src.width):
 
-        #         val = dem[row, col]
-        #         if (val > 230):
-        #             dem[row, col] = 0
-        # # Write our modified array back into band #1
+        # dem[int(round(y)),int(round(x))] = 0
+        for row in range(src.height):
+            for col in range(src.width):
+                z0 = dem[row, col]  # starting elevation
+                for k in range(1, 25):
+                    # project ray from current point
+                    x = col + k * dx  # col is x-axis
+                    y = row + k * dy  # row is y-axis
+
+                    # round to nearest grid index
+                    xi = int(round(x))
+                    yi = int(round(y))
+
+                    #check bounds
+                    if 0 <= yi < src.height and 0 <= xi < src.width:
+                        dist = np.sqrt(np.square(k*dx) + np.square(k*dy))
+                        z_ray = z0 + dist * np.tan(dz)  # ray height at that distance
+                        if dem[yi, xi] > z_ray:  # terrain blocks the sun
+                            dem[row, col] = 160  # mark shadow
+                            break
+                    else:
+                        break  # ray has left the grid
         src.write(dem, 1)
     return
 
@@ -256,20 +259,27 @@ def main():
     interpolated_directory = os.path.join(cwd, "output")
     laz_file = os.path.join(cwd, fetch_lidar_file(33.9222650219558, -83.35147687055435))
 
+    #Render Dem model from lidar point cloud
     RenderLidar(laz_file, interpolated_directory, "Ground.tif", "0,1,3,4,5", returns="all")
+    
+    #init file paths
     Ground_raw = os.path.join(interpolated_directory, "Ground.tif")
     Ground_filled = os.path.join(interpolated_directory, "Ground_filled.tif")
     Ground_filled_again = os.path.join(interpolated_directory, "Ground_filled_again.tif")
 
+    #Fills small holes in lidar data (accurate)
     fill_dem_holes(Ground_raw, Ground_filled)
+
+    #Fills big gaps in lidar data (less accurate)
     fill_dem_gaps(Ground_filled, Ground_filled_again)
 
-
+    #displays non 
     rasterioTest(Ground_filled_again)
 
-    #lets try to cast some shadows!
-    #holy fuck this is hard
+    #lets try to cast some shadows!    
     ground_level_shadow_cast(Ground_filled_again)
+
+    #display dem file with shadows casted
     rasterioTest(Ground_filled_again)
 
 
@@ -291,6 +301,5 @@ if __name__ == "__main__":
 # 10: Rail
 # 11: Road surface
 
-# TO DO
 
     
