@@ -123,7 +123,7 @@ def RenderLidar(laz_file_path, out_dir, out_name,excludes, returns="all"):
         output=os.path.join(out_dir, out_name),
         parameter="elevation",
         returns=returns,
-        resolution="5",
+        resolution="2",
         exclude_cls= excludes
     )
 
@@ -206,8 +206,9 @@ def ground_level_shadow_cast(TifPath):
     longitude = -83.35150683793637
 
     # Get current time in UTC (required by pvlib)
-    now = pd.Timestamp(datetime.utcnow(), tz='UTC')
-    # Calculate solar position
+    now = pd.Timestamp.now(tz='America/New_York')
+
+    # Compute solar position
     solpos = solarposition.get_solarposition(time=now, latitude=latitude, longitude=longitude)
     # Extract elevation and azimuth
     elevation = solpos['elevation'].iloc[0]
@@ -217,8 +218,11 @@ def ground_level_shadow_cast(TifPath):
     print(f"Sun Azimuth: {azimuth:.2f}°")
 
     azrad = np.deg2rad(azimuth)
+    elrad = np.deg2rad(elevation)
     dx = np.sin(azrad)  # how much to move east per step and not 0 degree is north
     dy = np.cos(azrad)  # how much to move north per step
+
+    dz = np.sin(elrad) #how much elevation per step
 
     i = 100
     j = 100
@@ -231,7 +235,9 @@ def ground_level_shadow_cast(TifPath):
         for k in range(1, 30):
             x = i + k * dx
             y = j + k * dy
-            dem[int(round(x)),int(round(y))] = 0
+
+            
+            dem[int(round(y)),int(round(x))] = 0
         # for row in range(src.height):
         #     for col in range(src.width):
 
