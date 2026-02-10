@@ -17,6 +17,7 @@ import pandas as pd
 from pvlib import solarposition
 import math
 import pytz
+from numba import njit
 
 
 def fetch_lidar_file(latitude, longitude): 
@@ -125,7 +126,7 @@ def RenderLidar(laz_file_path, out_dir, out_name,excludes, returns="all"):
         output=os.path.join(out_dir, out_name),
         parameter="elevation",
         returns=returns,
-        resolution="1",
+        resolution=".25",
         exclude_cls= excludes
     )
 
@@ -188,16 +189,33 @@ def fill_dem_gaps(input_tif, output_tif):
 
 
 
-def ground_level_shadow_cast(TifPath):
-    latitude = 33.922277455353395
-    longitude = -83.35150683793637
+@njit
+def _cast_shadows(dem, height, width, dx, dy, tan_el, resolution, max_distance):
+    steps = int(max_distance / resolution)  # how many pixels to check
+    for row in range(height - 200):
+        for col in range(width - 200):
+            z0 = dem[row, col]  # starting elevation
+            for k in range(1, steps):
+                # project ray from current point
+                xi = int(round(col + k * dx))
+                yi = int(round(row + k * dy))
 
-    # Get current time in UTC (required by pvlib)
+                #check bounds
+                if 0 <= yi < height and 0 <= xi < width:
+                    dist_m = k * resolution  # actual distance in meters
+                    z_ray = z0 + dist_m * tan_el  # ray height at that distance
+                    if dem[yi, xi] > z_ray:  # terrain blocks the sun
+                        dem[row, col] = 160  # mark shadow
+                        break
+                else:
+                    break  # ray has left the grid
+    return dem
+
+def ground_level_shadow_cast(TifPath, latitude, longitude):
+
+    # Get current time in Eastern
     eastern = pytz.timezone('America/New_York')
-    dt = eastern.localize(datetime(2025, 6, 30, 17, 0, 0))  # year, month, day, hour (13 = 1PM)
-
-    # Create pandas timestamp
-    now = pd.Timestamp(dt)
+    now = pd.Timestamp(datetime.now(eastern))
     solpos = solarposition.get_solarposition(time=now, latitude=latitude, longitude=longitude)
 
     # Extract elevation and azimuth
@@ -210,54 +228,26 @@ def ground_level_shadow_cast(TifPath):
     azrad = np.deg2rad(azimuth)
     elrad = np.deg2rad(elevation)
     dx = np.sin(azrad)  # how much to move east per step and not 0 degree is north
-    dy = np.cos(azrad)  # how much to move north per step
+    dy = -np.cos(azrad)  # negated because raster rows increase southward
 
-    dz = np.sin(elrad) #how much elevation per step
-
-
+    tan_el = np.tan(elrad) # height gain per unit horizontal distance
 
     with rasterio.open(TifPath, mode='r+') as src:
-    # Read the first (and usually only) band into a NumPy array
+        resolution = src.res[0]  # pixel size in meters from the GeoTIFF
         dem = src.read(1)
-        # Loop over every row and column
-        # print (src.height,src.width)
-        # for k in range(1, 30):
-        #     x = i + k * dx
-        #     y = j + k * dy
-
-
-        # dem[int(round(y)),int(round(x))] = 0
-        for row in range(src.height):
-            for col in range(src.width):
-                z0 = dem[row, col]  # starting elevation
-                for k in range(1, 25):
-                    # project ray from current point
-                    x = col + k * dx  # col is x-axis
-                    y = row + k * dy  # row is y-axis
-
-                    # round to nearest grid index
-                    xi = int(round(x))
-                    yi = int(round(y))
-
-                    #check bounds
-                    if 0 <= yi < src.height and 0 <= xi < src.width:
-                        dist = np.sqrt(np.square(k*dx) + np.square(k*dy))
-                        z_ray = z0 + dist * np.tan(dz)  # ray height at that distance
-                        if dem[yi, xi] > z_ray:  # terrain blocks the sun
-                            dem[row, col] = 160  # mark shadow
-                            break
-                    else:
-                        break  # ray has left the grid
+        dem = _cast_shadows(dem, src.height, src.width, dx, dy, tan_el, resolution, 25.0)
         src.write(dem, 1)
     return
 
     
     
 def main():
+    latitude = 33.96280751837907
+    longitude = -83.38712753678465
 
     cwd =  os.getcwd()
     interpolated_directory = os.path.join(cwd, "output")
-    laz_file = os.path.join(cwd, fetch_lidar_file(33.9222650219558, -83.35147687055435))
+    laz_file = os.path.join(cwd, fetch_lidar_file(latitude, longitude))
 
     #Render Dem model from lidar point cloud
     RenderLidar(laz_file, interpolated_directory, "Ground.tif", "0,1,3,4,5", returns="all")
@@ -277,7 +267,7 @@ def main():
     rasterioTest(Ground_filled_again)
 
     #lets try to cast some shadows!    
-    ground_level_shadow_cast(Ground_filled_again)
+    ground_level_shadow_cast(Ground_filled_again, latitude, longitude)
 
     #display dem file with shadows casted
     rasterioTest(Ground_filled_again)
