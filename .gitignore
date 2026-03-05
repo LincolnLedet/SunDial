@@ -1,1 +1,20 @@
-*LAZ
+# LiDAR data
+LAZ/
+*.laz
+
+# Generated output
+output/*.tif
+output/*.gif
+output/frames*/
+output/gifs/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+
+# Environment
+.env
+*.env
