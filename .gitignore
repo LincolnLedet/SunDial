@@ -6,7 +6,6 @@ LAZ/
 output/*.tif
 output/*.gif
 output/frames*/
-output/gifs/
 
 # Python
 __pycache__/
