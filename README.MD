@@ -1,7 +1,9 @@
 # SunDial
 
-![Ground Only Shadows](output/gifs/2026-03-04/ground_only_timelapse.gif)
-![With Vegetation Shadows](output/gifs/2026-03-04/with_vegetation_timelapse.gif)
+<p align="center">
+  <img src="output/gifs/2026-03-04/ground_only_timelapse.gif" width="400" alt="Ground Only Shadows">
+  <img src="output/gifs/2026-03-04/with_vegetation_timelapse.gif" width="400" alt="With Vegetation Shadows">
+</p>
 
 ## Overview
 The goal of this project is to create a publicly accessible, open-source API or Python library that can take in a longitude, latitude, and time of day, and predict if a point is in shade based on publicly available LiDAR scans. SunDial builds optimized DEMs from USGS LiDAR point clouds and performs GPU-free raytracing to cast accurate shadows using real solar positions.
